@@ -7,3 +7,15 @@
 *.cmx
 *.cmxs
 *.cmxa
+*.swp
+
+src/joujou
+src/.depend
+src/parsing/lexer.ml
+src/parsing/parser.ml
+src/parsing/pprint-20130324/src/_build
+
+test/*/*/*.mlse
+test/*/*/*.mlr
+test/*/*/*.ml
+
