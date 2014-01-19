@@ -57,9 +57,10 @@ let bind_class k c env =
 let lookup_superclasses pos k env =
   (lookup_class pos k env).superclasses
 
+(* Determine whether the class [k1] is a superclass of the class [k2]
+   (noted k1 < k2 in the course book). *)
 let is_superclass pos k1 k2 env =
-  (* Student! This is your job! *)
-  true
+  List.mem k1 (lookup_superclasses pos k2 env)
 
 let bind_type_variable t env =
   bind_type t KStar (TypeDef (undefined_position, KStar, t, DAlgebraic [])) env

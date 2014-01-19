@@ -24,12 +24,79 @@ and block env = function
     ([BDefinition d], env)
 
   | BClassDefinition c ->
-    (** Class definitions are ignored. Student! This is your job! *)
-    ([], env)
+    (* The function [bind_class] already checks for existing defintions of
+       [c]. *)
+
+    (* Check the independance of the superclasses.
+       Since this check must find the list of superclasses
+       of each of [c.superclasses], their existance is checked
+       at the same time. *)
+    List.iter (fun k1 ->
+      List.iter (fun k2 ->
+        if k1 != k2 && is_superclass c.class_position k1 k2 env then
+          raise (TheseTwoClassesMustNotBeInTheSameContext (c.class_position, k1, k2));
+      ) c.superclasses
+    ) c.superclasses;
+
+    (* Bind the class members. *)
+    let env = List.fold_left (fun env (pos, u, t) ->
+      (* Check that the type [t] is well defined in the current context. *)
+      check_wf_scheme env [c.class_parameter] t;
+      (* Check for existing definitions of [u]. *)
+      let u = name_of_label u in
+      try
+        ignore (lookup pos u env);
+        raise (OverloadedSymbolCannotBeBound (c.class_position, u))
+      with
+        (UnboundIdentifier _) ->
+          (* Bind the method [u]. *)
+          bind_scheme u [c.class_parameter] t env
+    ) env c.class_members in
+
+    (* Bind the class. *)
+    let env = bind_class c.class_name c env in
+    ([BClassDefinition c], env)
 
   | BInstanceDefinitions is ->
+    (* Check the instances one by one. *)
+    List.iter (fun i ->
+      let pos = i.instance_position in
+
+      (* Recover the class definition of [i.instance_class_name]. *)
+      let _ = lookup_class pos i.instance_class_name env in
+
+      (* Check the canonicity of the typing context of [i]. *)
+      List.iter (fun (ClassPredicate (k1, a1)) ->
+        List.iter (fun (ClassPredicate (k2, a2)) ->
+          if k1 != k2 && a1 = a2 && is_superclass pos k1 k2 env then
+            raise (TheseTwoClassesMustNotBeInTheSameContext (pos, k1, k2));
+        ) i.instance_typing_context
+      ) i.instance_typing_context;
+
+      (* The index [i.instance_index] must be a datatype constructor of arity
+         the size of [i.instance_parameters]. *)
+      let k = lookup_type_kind pos i.instance_index env in
+      let params = List.map (fun p -> TyVar (pos, p)) i.instance_parameters in
+      if i.instance_index = TName "->" then raise (IllKindedType pos);
+      check_type_constructor_application pos env k params;
+
+      (* The types of each of the methods must match the type imposed by the
+          class definition. *)
+      List.iter (fun (RecordBinding (u,e)) ->
+        let u = name_of_label u in
+
+        (* Check the expression, and get its type. *)
+        let (_, t) = expression (introduce_type_parameters env i.instance_parameters) e in
+
+        (* Match with the expected type. *)
+        let ([a],(_,texp)) = lookup pos u env in
+        let texp = substitute [a,TyApp (pos, i.instance_index, params)] texp in
+        if not (equivalent t texp) then raise (IncompatibleTypes (pos, t, texp));
+      ) i.instance_members;
+
+    ) is;
     (** Instance definitions are ignored. Student! This is your job! *)
-    ([], env)
+    ([BInstanceDefinitions is], env)
 
 and type_definitions env (TypeDefs (_, tdefs)) =
   let env = List.fold_left env_of_type_definition env tdefs in

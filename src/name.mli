@@ -11,3 +11,6 @@ type lname = LName of string
 
 (** Type identifiers. *)
 type tname = TName of string
+
+(* Convert a label to an identifier. *)
+val name_of_label : lname -> name
