@@ -8,6 +8,17 @@ open ElaborationExceptions
 open ElaborationEnvironment
 
 let string_of_type ty      = ASTio.(XAST.(to_string pprint_ml_type ty))
+let is_canonical pos ts context env =
+  List.iter (fun (ClassPredicate (k1, a1)) ->
+    List.iter (fun (ClassPredicate (k2, a2)) ->
+      if k1 != k2 &&
+         a1 = a2 &&
+         List.mem a1 ts &&
+         is_superclass pos k1 k2 env then
+        raise (TheseTwoClassesMustNotBeInTheSameContext (pos, k1, k2));
+    ) context
+  ) context
+;;
 
 
 let rec program p = handle_error List.(fun () ->
@@ -24,6 +35,8 @@ and block env = function
     ([BDefinition d], env)
 
   | BClassDefinition c ->
+    let pos = c.class_position in
+
     (* The function [bind_class] already checks for existing defintions of
        [c]. *)
 
@@ -33,70 +46,130 @@ and block env = function
        at the same time. *)
     List.iter (fun k1 ->
       List.iter (fun k2 ->
-        if k1 != k2 && is_superclass c.class_position k1 k2 env then
-          raise (TheseTwoClassesMustNotBeInTheSameContext (c.class_position, k1, k2));
+        if k1 != k2 && is_superclass pos k1 k2 env then
+          raise (TheseTwoClassesMustNotBeInTheSameContext (pos, k1, k2));
       ) c.superclasses
     ) c.superclasses;
 
-    (* Bind the class members. *)
-    let env = List.fold_left (fun env (pos, u, t) ->
-      (* Check that the type [t] is well defined in the current context. *)
-      check_wf_scheme env [c.class_parameter] t;
-      (* Check for existing definitions of [u]. *)
-      let u = name_of_label u in
-      try
-        ignore (lookup pos u env);
-        raise (OverloadedSymbolCannotBeBound (c.class_position, u))
-      with
-        (UnboundIdentifier _) ->
-          (* Bind the method [u]. *)
-          bind_scheme u [c.class_parameter] t env
-    ) env c.class_members in
+    (* Build the record type definition corresponding to the class. *)
+    let ckind = KArrow (KStar, KStar)
+    and cname = type_of_class c.class_name
+    and cparam = c.class_parameter in
+    let crecords =
+      (List.map (fun k ->
+        (pos, make_superclass_label cname k, TyApp (pos, type_of_class k, [TyVar (pos, cparam)]))
+      ) c.superclasses) @ c.class_members in
+    let ctype = TypeDef (pos, ckind, cname, DRecordType ([cparam], crecords)) in
 
-    (* Bind the class. *)
+    (* Build the class members. *)
+    let cmembers = List.map (fun (pos, lname, typ) ->
+      let name = name_of_label lname in
+      (* Check that [lname] is not bound. *)
+      if is_bound name env then
+        raise (OverloadedSymbolCannotBeBound (pos, name));
+
+      (* The type [K a]. *)
+      let ka = TyApp (pos, cname, [TyVar (pos, cparam)]) in
+      ValueDef (pos,
+        [cparam],
+        [],
+        (name, TyApp (pos, TName "->", [ka; typ])),
+        EForall (pos, [cparam],
+          ELambda (pos,
+            (Name "_z", ka),
+            ERecordAccess (pos, EVar (pos, Name "_z", []), lname))))
+    ) crecords in
+
+    (* Bind. *)
+    let env = type_definitions env (TypeDefs (pos, [ctype])) in
+    let (def, env) = block env (BDefinition (BindValue (pos, cmembers))) in
     let env = bind_class c.class_name c env in
-    ([BClassDefinition c], env)
+    (BTypeDefinitions (TypeDefs (pos, [ctype])) :: def, env)
 
   | BInstanceDefinitions is ->
-    (* Check the instances one by one. *)
-    List.iter (fun i ->
+    (* Do some checks, and build the different environments needed for the elaboration. *)
+    let (envs, env) = List.fold_left (fun (envs, env) i ->
       let pos = i.instance_position in
-
-      (* Recover the class definition of [i.instance_class_name]. *)
-      let _ = lookup_class pos i.instance_class_name env in
+      let cname = type_of_class i.instance_class_name in
+      let g = i.instance_index in
+      let context = i.instance_typing_context in
+      let context_arg = List.map (
+        fun (ClassPredicate (k,a)) -> TyApp (pos, type_of_class k, [TyVar (pos, a)])
+      ) context in
 
       (* Check the canonicity of the typing context of [i]. *)
-      List.iter (fun (ClassPredicate (k1, a1)) ->
-        List.iter (fun (ClassPredicate (k2, a2)) ->
-          if k1 != k2 && a1 = a2 && is_superclass pos k1 k2 env then
-            raise (TheseTwoClassesMustNotBeInTheSameContext (pos, k1, k2));
-        ) i.instance_typing_context
-      ) i.instance_typing_context;
+      is_canonical pos i.instance_parameters context env;
 
       (* The index [i.instance_index] must be a datatype constructor of arity
          the size of [i.instance_parameters]. *)
-      let k = lookup_type_kind pos i.instance_index env in
+      let k = lookup_type_kind pos g env in
       let params = List.map (fun p -> TyVar (pos, p)) i.instance_parameters in
-      if i.instance_index = TName "->" then raise (IllKindedType pos);
+      if g = TName "->" then raise (IllKindedType pos);
       check_type_constructor_application pos env k params;
 
-      (* The types of each of the methods must match the type imposed by the
-          class definition. *)
-      List.iter (fun (RecordBinding (u,e)) ->
-        let u = name_of_label u in
+      (* Bind the instance constructor in the environment. *)
+      let iname = make_instance_name cname g in
+      let ityp = ntyarrow pos context_arg (TyApp (pos, cname, [TyApp (pos, g, params)])) in
+      let nenv = bind_scheme iname i.instance_parameters ityp env in
 
-        (* Check the expression, and get its type. *)
-        let (_, t) = expression (introduce_type_parameters env i.instance_parameters) e in
+      ((env, (iname, ityp)) :: envs, nenv)
+    ) ([], env) is in
 
-        (* Match with the expected type. *)
-        let ([a],(_,texp)) = lookup pos u env in
-        let texp = substitute [a,TyApp (pos, i.instance_index, params)] texp in
-        if not (equivalent t texp) then raise (IncompatibleTypes (pos, t, texp));
-      ) i.instance_members;
+    (* At this point, [env] contains all the instance constructors. *)
 
-    ) is;
-    (** Instance definitions are ignored. Student! This is your job! *)
-    ([BInstanceDefinitions is], env)
+    (* Elaborate the class members. *)
+    let decls = List.map2 (fun (penv, (iname, ityp)) i ->
+      let pos = i.instance_position in
+      let cname = type_of_class i.instance_class_name in
+      let c = lookup_class pos i.instance_class_name env in
+      let g = i.instance_index in
+      let context = i.instance_typing_context in
+      let context_arg = List.map (
+        fun (ClassPredicate (k,a)) -> TyApp (pos, type_of_class k, [TyVar (pos, a)])
+      ) context in
+      let params = List.map (fun p -> TyVar (pos, p)) i.instance_parameters in
+
+      (* Create the needed dictionaries. *)
+      let karg = List.mapi (fun i _ -> Name ("_z" ^ string_of_int i)) context in
+      let with_context env = List.fold_left2 (
+        fun env z t -> bind_simple z t env
+      ) (introduce_type_parameters env i.instance_parameters) karg context_arg in
+
+      (* Create the records corresponding to the superclasses. *)
+      let records =
+        (* The superclasses (elaborated in the partial environment). *)
+        List.map (fun k ->
+          let q = elaborate_dictionary (with_context penv) (pos, k, TyApp (pos, g, params)) in
+          RecordBinding (make_superclass_label cname k, q)
+        ) c.superclasses @
+        (* The methods. *)
+        List.map (fun (RecordBinding (u,e)) ->
+          (* Restrict the environment if needed. *)
+          let renv = match e with
+              ELambda _ -> with_context env
+            | _ -> with_context penv
+          in
+          (* Elaborate the expression. *)
+          let (e, t) = expression renv e in
+
+          (* Match the type with that from the class definition. *)
+          let (ts, texp, _) = lookup_label pos u renv in
+          let texp = substitute (List.combine ts [TyApp (pos, g, params)]) texp in
+          check_equal_types pos t texp;
+          RecordBinding (u,e)) i.instance_members in
+
+      let ibuilder =
+        EForall (pos, i.instance_parameters,
+          List.fold_right2 (fun z t e -> ELambda (pos, (z, t), e)) karg context_arg
+            (ERecordCon (pos, Name "", [], records)))
+      in
+      ValueDef (pos, i.instance_parameters, [], (iname, ityp), ibuilder)
+    ) (List.rev envs) is in
+
+    ([BDefinition (BindRecValue (undefined_position, decls))], env)
+
+and elaborate_dictionary env (pos, tname, typ) =
+  EVar (pos, Name "_dic_", [])
 
 and type_definitions env (TypeDefs (_, tdefs)) =
   let env = List.fold_left env_of_type_definition env tdefs in
@@ -432,6 +505,8 @@ and eforall pos ts e =
 
 and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
   let env = introduce_type_parameters env ts in
+  if is_overloaded (label_of_name x) env then
+    raise (OverloadedSymbolCannotBeBound (pos, x));
   check_wf_scheme env ts xty;
 
   if is_value_form e then begin

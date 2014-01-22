@@ -14,6 +14,15 @@ type t = {
 let empty = { values = []; types = []; classes = []; labels = [] }
 
 let values env = env.values
+let classes env = env.classes
+
+let is_overloaded x env =
+  List.exists (fun (_, c) ->
+    List.exists (fun (_ , x', _) -> x = x') c.class_members
+  ) env.classes
+
+let is_bound x env =
+  List.exists (fun (_, (x', _)) -> x = x') env.values
 
 let lookup pos x env =
   try
@@ -59,8 +68,10 @@ let lookup_superclasses pos k env =
 
 (* Determine whether the class [k1] is a superclass of the class [k2]
    (noted k1 < k2 in the course book). *)
-let is_superclass pos k1 k2 env =
-  List.mem k1 (lookup_superclasses pos k2 env)
+let rec is_superclass pos k1 k2 env =
+  let super2 = lookup_superclasses pos k2 env in
+  List.mem k1 super2 ||
+  List.fold_left (fun b k -> if b then true else is_superclass pos k1 k env) false super2
 
 let bind_type_variable t env =
   bind_type t KStar (TypeDef (undefined_position, KStar, t, DAlgebraic [])) env

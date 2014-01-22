@@ -13,9 +13,16 @@ val empty : t
 (** [initial] contains the builtin type constructors of {!XAST}. *)
 val initial : t
 
+(** Return [true] if the symbol is overloaded. *)
+val is_overloaded : lname -> t -> bool
+
+(** Return [true] if the symbol is bound. *)
+val is_bound : name -> t -> bool
+
 (** [values env] projects [env] as an environment of bindings
     that associate type scheme to value identifiers. *)
 val values : t -> (tnames * binding) list
+val classes : t -> (tname * class_definition) list
 
 (** [lookup pos x env] returns the binding of [x]. *)
 val lookup : position -> name -> t -> (tnames * binding)
