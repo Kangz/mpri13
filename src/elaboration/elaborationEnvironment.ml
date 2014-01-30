@@ -24,6 +24,10 @@ let is_overloaded x env =
 let is_bound x env =
   List.exists (fun (_, (x', _)) -> x = x') env.values
 
+let is_class_name s env =
+  let c = class_of_type s in
+  List.exists (fun (c', _) -> c = c') env.classes
+
 let lookup pos x env =
   try
     List.find (fun (_, (x', _)) -> x = x') env.values

@@ -9,6 +9,7 @@ type tname = TName of string
 let name_of_label (LName s) = Name s ;;
 let label_of_name (Name s) = LName s ;;
 let type_of_class (TName s) = TName ("c" ^ s) ;;
+let class_of_type (TName s) = TName (String.sub s 1 (String.length s - 1)) ;;
 
 (* Create the field name of a superclass of a class definition. *)
 let make_superclass_label (TName k) (TName super) = LName (k ^ super) ;;

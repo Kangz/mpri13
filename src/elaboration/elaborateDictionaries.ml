@@ -297,7 +297,20 @@ and type_application pos env x tys =
 
 and expression env = function
   | EVar (pos, ((Name s) as x), tys) ->
-    (EVar (pos, x, tys), type_application pos env x tys)
+    let t = type_application pos env x tys in
+    let (ity, oty) = destruct_ntyarrow t in
+    let (darg, arg) = List.partition (fun ty ->
+      match ty with
+        TyApp (_, s, _) -> is_class_name s env
+      | _ -> false
+    ) ity in
+    let darg = List.map (fun t ->
+      match t with
+        TyApp (pos, k, [ty]) -> elaborate_dictionary env (pos, k, ty)
+      | _ -> raise (CannotElaborateDictionary (pos, t))
+    ) darg in
+    let e = List.fold_left (fun e f -> EApp (pos, e, f)) (EVar (pos, x, tys)) darg in
+    (e, ntyarrow pos arg oty)
 
   | ELambda (pos, ((x, aty) as b), e') ->
     check_wf_type env KStar aty;
@@ -547,14 +560,25 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
   check_wf_scheme env ts xty;
 
   if is_value_form e then begin
+    (* Check the canonicity of the typing context. *)
+    is_canonical pos ts ps env;
+    (* Check the number of type abstractions. *)
     let e = eforall pos ts e in
+    (* The class predicates are transformed into arguments. *)
+    let psn = List.mapi (fun i _ -> Name ("_z" ^ string_of_int i)) ps in
+    let e = List.fold_right2 (fun (ClassPredicate (k, t)) z e ->
+      ELambda (pos, (z, TyApp (pos, type_of_class k, [TyVar (pos, t)])), e)) ps psn e in
     let e, ty = expression env e in
-    let b = (x, ty) in
+    (* Modify the type [xty] to match that of the modified expression [e]. *)
+    let xty = List.fold_right (fun (ClassPredicate (k,ty)) t ->
+      ntyarrow pos [TyApp (pos, type_of_class k, [TyVar (pos, ty)])] t
+    ) ps xty in
     check_equal_types pos xty ty;
-    (ValueDef (pos, ts, [], b, EForall (pos, ts, e)),
+    (ValueDef (pos, ts, [], (x, ty), EForall (pos, ts, e)),
      bind_scheme x ts ty env)
   end else begin
-    if ts <> [] then
+    (* If the expression is not in value form, the class constraints are ignored. *)
+    if ts <> [] || ps <> [] then
       raise (ValueRestriction pos)
     else
       let e = eforall pos [] e in

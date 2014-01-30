@@ -19,6 +19,9 @@ val is_overloaded : lname -> t -> bool
 (** Return [true] if the symbol is bound. *)
 val is_bound : name -> t -> bool
 
+(** Return [true] if the type name matches a class name. *)
+val is_class_name : tname -> t -> bool
+
 (** [values env] projects [env] as an environment of bindings
     that associate type scheme to value identifiers. *)
 val values : t -> (tnames * binding) list

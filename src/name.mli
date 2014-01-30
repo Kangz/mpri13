@@ -20,6 +20,7 @@ val label_of_name : name -> lname
 
 (** Transform a class name into an accepted ocaml type name. *)
 val type_of_class : tname -> tname
+val class_of_type : tname -> tname
 
 (** Create the label of a superclass of a class definition. *)
 val make_superclass_label : tname -> tname -> lname
