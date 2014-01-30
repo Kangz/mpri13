@@ -139,7 +139,7 @@ and block env = function
       let records =
         (* The superclasses (elaborated in the partial environment). *)
         List.map (fun k ->
-          let q = elaborate_dictionary (with_context penv) (pos, k, TyApp (pos, g, params)) in
+          let q = elaborate_dictionary (with_context penv) (pos, type_of_class k, TyApp (pos, g, params)) in
           RecordBinding (make_superclass_label cname k, q)
         ) c.superclasses @
         (* The methods. *)
@@ -169,7 +169,44 @@ and block env = function
     ([BDefinition (BindRecValue (undefined_position, decls))], env)
 
 and elaborate_dictionary env (pos, tname, typ) =
-  EVar (pos, Name "_dic_", [])
+  (* Lookup dict variables. *)
+  match lookup_dvar (tname, typ) env with
+    Some x -> EVar (pos, x, [])
+  | None ->
+    try
+      (* Lookup dict instances. *)
+      match (lookup_dinst (tname, typ) env, typ) with
+        (Some (ts, (x, ty)), TyApp (_,_,typarg))  ->
+          let (ity, oty) = destruct_ntyarrow ty in
+          let darg = List.map (fun ity ->
+            match ity with
+              TyApp (_, k, [aty]) ->
+                (* Elaboration of the instance arguments. *)
+                elaborate_dictionary env (pos, k, aty)
+            | _ -> raise (CannotElaborateDictionary (pos, ity))
+          ) ity in
+          List.fold_right (fun e f -> EApp (pos, e, f)) darg (EVar (pos, x, typarg))
+      | _ -> raise (CannotElaborateDictionary (pos, TyApp (pos, tname, [typ])))
+    (* Either no instance found, or error in the elaboration of the instance arguments. *)
+    with CannotElaborateDictionary _ ->
+      begin
+        (* Lookup dict proj.
+           Each projection is tested until the right one is found. *)
+        let ans = List.fold_left (fun ans (ts, (x, t)) ->
+          match (ans, destruct_tyarrow t) with
+            (Some _, _) -> ans
+          | (None, Some (TyApp (pos, k0, [_]), _)) ->
+            begin try
+              let e0 = elaborate_dictionary env (pos, k0, typ) in
+              Some (EApp (pos, (EVar (pos, x, [typ])), e0))
+            with CannotElaborateDictionary _ -> None
+            end
+          | _ -> None
+        ) None (lookup_dproj (tname, typ) env) in
+        match ans with
+          Some e -> e
+        | None -> raise (CannotElaborateDictionary (pos, TyApp (pos, tname, [typ])))
+      end
 
 and type_definitions env (TypeDefs (_, tdefs)) =
   let env = List.fold_left env_of_type_definition env tdefs in

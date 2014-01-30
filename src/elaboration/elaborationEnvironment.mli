@@ -52,6 +52,10 @@ val bind_type_variable : tname -> t -> t
 (** [lookup_class pos c e] returns the class_definition of [c] in [e]. *)
 val lookup_class : position -> tname -> t -> class_definition
 
+val lookup_dinst : (tname * Types.t) -> t -> (tname list * binding) option
+val lookup_dvar : (tname * Types.t) -> t -> name option
+val lookup_dproj : (tname * Types.t) -> t -> (tname list * binding) list
+
 (** [is_superclass pos k1 k2 e] returns [true] if [k2] is a superclass of
     [k1] in [e]. *)
 val is_superclass : position -> tname -> tname -> t -> bool
@@ -67,4 +71,6 @@ val bind_label : position -> lname -> tnames -> Types.t -> tname -> t -> t
 (** [lookup_label pos l e] returns the type parameters, the type and
     the record type constructor of the label [l] in [e]. *)
 val lookup_label : position -> lname -> t -> tnames * Types.t * tname
+
+val print_values : t -> unit
 

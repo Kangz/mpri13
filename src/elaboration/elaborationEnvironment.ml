@@ -73,6 +73,35 @@ let rec is_superclass pos k1 k2 env =
   List.mem k1 super2 ||
   List.fold_left (fun b k -> if b then true else is_superclass pos k1 k env) false super2
 
+(* Lookup a dictionary instance which can build a dictionary of type [k]. *)
+let lookup_dinst (k,t) env =
+  try
+    Some (List.find (fun (ts, (x, ty)) ->
+      match (destruct_ntyarrow ty, t) with
+          ((_, TyApp (_, k0, [TyApp (_, g0, _)])),
+           TyApp (_, g, _)) -> k = k0 && g = g0
+        | _ -> false
+    ) env.values)
+  with Not_found -> None
+
+(* Lookup a dictionary projection which can extract a dictionary of type [k]. *)
+let lookup_dproj (k,t) env =
+  List.filter (fun (ts, (x, t)) ->
+    match destruct_tyarrow t with
+      Some (
+        TyApp (_, k0, [TyVar(_,a0)]),
+        TyApp (_, k1,[TyVar(_,a1)])) -> k1 = k && a0 = a1
+    | _ -> false
+  ) env.values
+
+(* Lookup a dictionary variable of type [k]. *)
+let lookup_dvar (k,t) env =
+  let t = TyApp (undefined_position, k, [t]) in
+  try
+    let (_, (x, _)) = List.find (fun (_, (x, ty)) -> equivalent t ty) env.values in
+    Some x
+  with Not_found -> None
+
 let bind_type_variable t env =
   bind_type t KStar (TypeDef (undefined_position, KStar, t, DAlgebraic [])) env
 
@@ -99,4 +128,11 @@ let initial =
     (TName "char", KStar);
     (TName "unit", KStar)
   ]
+
+let string_of_type ty      = ASTio.(XAST.(to_string pprint_ml_type ty))
+
+let print_values env =
+  List.iter (fun (_,(Name x, typ)) ->
+    print_string (x ^ ": " ^ string_of_type typ ^ "\n")
+  ) env.values
 

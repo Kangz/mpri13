@@ -1,0 +1,9 @@
+type 'a list = Nil | Cons of 'a * 'a list
+
+class H 'a { h : 'a -> int }
+class H 'a => I 'a { i : 'a -> unit }
+class H 'a => J 'a { j : 'a -> int }
+
+instance ['a] H 'a => H 'a list { h = fun (x_1 : 'a list) -> 0 }
+instance ['a] J 'a => I 'a list { i = fun (x_1 : 'a list) -> () }
+let (main : int) = 0
