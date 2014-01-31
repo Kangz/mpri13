@@ -185,7 +185,7 @@ and elaborate_dictionary env (pos, tname, typ) =
                 elaborate_dictionary env (pos, k, aty)
             | _ -> raise (CannotElaborateDictionary (pos, ity))
           ) ity in
-          List.fold_right (fun e f -> EApp (pos, e, f)) darg (EVar (pos, x, typarg))
+          List.fold_left (fun e f -> EApp (pos, e, f)) (EVar (pos, x, typarg)) darg
       | _ -> raise (CannotElaborateDictionary (pos, TyApp (pos, tname, [typ])))
     (* Either no instance found, or error in the elaboration of the instance arguments. *)
     with CannotElaborateDictionary _ ->
@@ -589,6 +589,10 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
   end
 
 and value_declaration env (ValueDef (pos, ts, ps, (x, ty), e)) =
+  (* The type needs to be transformed to include the class predicates. *)
+  let ty = List.fold_right (fun (ClassPredicate (k,t)) ty ->
+    ntyarrow pos [TyApp (pos, type_of_class k, [TyVar (pos, t)])] ty
+  ) ps ty in
   bind_scheme x ts ty env
 
 
