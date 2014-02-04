@@ -35,6 +35,11 @@ type instantiation_kind =
   | TypeApplication of t list
   | LeftImplicit
 
+let rec type_variables ty =
+  match ty with
+    TyVar (_,n) -> [n]
+  | TyApp (_,n,tys) -> n::(List.flatten (List.map type_variables tys))
+
 module type TypingSyntax = sig
   type binding
 

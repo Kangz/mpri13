@@ -121,3 +121,4 @@ let handle_error f =
       fatal' pos (Printf.sprintf
                    "  Identifier `%s' cannot be both overloaded and let-bound."
                    x)
+

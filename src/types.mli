@@ -19,6 +19,8 @@ type instantiation_kind =
   | TypeApplication of t list
   | LeftImplicit
 
+val type_variables : t -> tname list
+
 (** The following module type specifies the differences
     between the variants of ML we provide in {!IAST} and
     {!XAST}. *)

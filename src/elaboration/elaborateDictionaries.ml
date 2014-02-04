@@ -558,6 +558,10 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
   if is_overloaded (label_of_name x) env then
     raise (OverloadedSymbolCannotBeBound (pos, x));
   check_wf_scheme env ts xty;
+  (* The set of free type variables of [xty] must contain the set [ts]. *)
+  let ftv = type_variables xty in
+  if List.filter (fun t -> not (List.mem t ftv)) ts <> [] then
+    raise (InvalidOverloading pos);
 
   if is_value_form e then begin
     (* Check the canonicity of the typing context. *)
