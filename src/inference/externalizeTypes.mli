@@ -41,7 +41,7 @@ val type_of_variable: position -> variable -> Types.t
     between. *)
 val type_scheme_of_variable
   : position
-  -> (variable list * (tname * variable) list * variable) -> Types.scheme
+  -> (variable list * (tname * variable list) list * variable) -> Types.scheme
 
 (** [reset ()] clears the memoization table to maintain naming conventions. *)
 val reset: unit -> unit

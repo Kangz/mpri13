@@ -11,7 +11,9 @@ type t =
 
 type scheme = TyScheme of tname list * class_predicates * t
 
-and class_predicate = ClassPredicate of tname * tname
+(* With the extension: MultiParamTypeClasses, class predicates
+ * must give a list of parameters. *)
+and class_predicate = ClassPredicate of tname * tname list
 
 and class_predicates = class_predicate list
 

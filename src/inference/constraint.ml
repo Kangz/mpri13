@@ -62,7 +62,7 @@ and ('crterm, 'variable) scheme =
     * ('crterm * position) StringMap.t
 
 and ('crterm, 'variable) canonical_constraint =
-    (tname * 'variable) list
+    (tname * 'variable list) list
 
 type variable = MultiEquation.variable
 

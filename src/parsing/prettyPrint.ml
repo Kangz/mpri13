@@ -290,8 +290,8 @@ module Make (GAST : AST.GenericS) = struct
         ) ^^ break 1
       )
 
-  and class_predicate (ClassPredicate (k, t)) =
-    group (tname k ^/^ tname t)
+  and class_predicate (ClassPredicate (k, tys)) =
+    group (tname k ^/^ (separate_map space tname tys))
 
   and type_parameters = function
     | [] -> empty
@@ -384,15 +384,13 @@ module Make (GAST : AST.GenericS) = struct
   and class_definition cd =
     does_not_exist_in_ocaml (fun () ->
       let cs =
-        List.map
-          (fun k -> ClassPredicate (k, cd.class_parameter))
-          cd.superclasses
+        List.map (fun (k, tys) -> ClassPredicate (k, tys)) cd.superclasses
       in
       group (
         group (
           !^ "class"
           ^/^ superclasses cs
-          ^^ class_predicate (ClassPredicate (cd.class_name,cd.class_parameter))
+          ^^ class_predicate (ClassPredicate (cd.class_name,cd.class_parameters))
         ) ^/^ nest 2 (!^ "{"
                       ^/^ group (row cd.class_members)) ^/^ !^ "}"
       )
@@ -407,12 +405,10 @@ module Make (GAST : AST.GenericS) = struct
 
   and instance_definition id =
     does_not_exist_in_ocaml (fun () ->
-      let instance_index =
-        TyApp (undefined_position, id.instance_index,
-               List.map
-                 (fun t -> TyApp (undefined_position, t, []))
-                 id.instance_parameters
-        )
+      let instance_indexes = List.map (fun (ix, tys) ->
+        TyApp (undefined_position, ix,
+               List.map (fun t -> TyApp (undefined_position, t, [])) tys
+        )) id.instance_indexes
       in
       group (
         group (
@@ -420,7 +416,7 @@ module Make (GAST : AST.GenericS) = struct
             !^ "instance"
             ^/^ type_parameters id.instance_parameters
             ^^ superclasses id.instance_typing_context
-            ^^ group (tname id.instance_class_name ^/^ ml_type instance_index)
+            ^^ group (tname id.instance_class_name ^/^ separate_map space ml_type instance_indexes)
           ) ^/^ nest 2 (
             !^ "{"
             ^/^ group (record_bindings id.instance_members)

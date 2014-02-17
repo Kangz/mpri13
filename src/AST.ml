@@ -15,11 +15,15 @@ module Make (P : Types.TypingSyntax) = struct
     | BDefinition of value_binding
 
   and class_definition = {
-    class_position  : position;
-    class_parameter : tname;
-    superclasses    : tname list;
-    class_name      : tname;
-    class_members   : (position * lname * mltype) list;
+    class_position   : position;
+    (* With the extension: MultiParamTypeClasses,
+     * provide a list of class parameters. *)
+    class_parameters : tname list;
+    (* With the extension: MultiParamTypeClasses,
+     * the argument of the superclasses must be specified. *)
+    superclasses     : (tname * tname list) list;
+    class_name       : tname;
+    class_members    : (position * lname * mltype) list;
   }
 
   and instance_definition = {
@@ -27,7 +31,10 @@ module Make (P : Types.TypingSyntax) = struct
     instance_parameters     : tname list;
     instance_typing_context : class_predicate list;
     instance_class_name     : tname;
-    instance_index          : tname;
+    (* With the extension: MultiParamTypeClasses,
+     * provide a list of indexes (with each a list of parameters
+     * that must be a subset of [instance_parameters]). *)
+    instance_indexes        : (tname * tname list) list;
     instance_members        : record_binding list;
   }
 
@@ -118,3 +125,4 @@ module Generic = Make (struct
 end)
 
 module type GenericS = module type of Generic
+

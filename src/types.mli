@@ -11,7 +11,7 @@ type t =
 (** Type schemes. *)
 type scheme = TyScheme of tname list * class_predicates * t
 
-and class_predicate = ClassPredicate of tname * tname
+and class_predicate = ClassPredicate of tname * tname list
 
 and class_predicates = class_predicate list
 

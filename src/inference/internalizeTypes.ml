@@ -121,17 +121,18 @@ let intern_let_env pos tenv rs fs =
   let rqs, rtenv' = fresh_rigid_vars pos tenv rs in
     rqs, fqs, add_type_variables (rtenv @ rtenv') tenv
 
-let intern_class_predicate pos tenv (ClassPredicate (k, a)) =
-  let x = variable Flexible () in
-  let tx = TVariable x in
-  let kty = intern pos tenv (TyVar (pos, a)) in
-  let c = (tx =?= kty) pos in
-  ((x, c), (k, x))
+let intern_class_predicate pos tenv (ClassPredicate (k, tys)) =
+  let (xs, ass) = variable_list Flexible tys in
+  let cs = List.map (fun (ty, x) ->
+    let kty = intern pos tenv (TyVar (pos, ty)) in
+    (x =?= kty) pos) ass
+  in
+  ((xs, cs), (k, xs))
 
 let intern_class_predicates pos tenv cs =
   let xcs, gs = List.(split (map (intern_class_predicate pos tenv) cs)) in
   let xs, cs = List.split xcs in
-  (xs, gs, cs)
+  (List.flatten xs, gs, List.flatten cs)
 
 (** [intern_scheme tenv name qs cs typ] produces a type scheme
     that binds [name] to [forall qs [cs]. typ]. *)

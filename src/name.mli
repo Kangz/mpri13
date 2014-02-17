@@ -26,4 +26,4 @@ val class_of_type : tname -> tname
 val make_superclass_label : tname -> tname -> lname
 
 (** Create the name of an instance constructor. *)
-val make_instance_name : tname -> tname -> name
+val make_instance_name : tname -> tname list -> name

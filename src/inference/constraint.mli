@@ -63,7 +63,7 @@ and ('crterm, 'variable) scheme =
     * ('crterm * position) StringMap.t
 
 and ('crterm, 'variable) canonical_constraint =
-    (tname * 'variable) list
+    (tname * 'variable list) list
 
 (** The variables that appear in contraints are the same as the multi-equation
     ones. *)

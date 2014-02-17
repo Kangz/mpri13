@@ -7,6 +7,12 @@ open Name
 (** The type of environments. *)
 type t
 
+(** The type of predicate arguments. *)
+type targ = Rigid of Types.t | Flexible of tname
+type dvar = binding * tname * Types.t list
+and dinst = binding * tname list * (tname * tname list) list * (tname * (tname * tname list) list)
+and dproj = binding * tname list * (tname * tname list) * (tname * tname list)
+
 (** [empty] is the environment with no binding. *)
 val empty : t
 
@@ -38,6 +44,10 @@ val bind_scheme : name -> tnames -> Types.t -> t -> t
     the identifier [n] in [e]. *)
 val bind_simple : name -> Types.t -> t -> t
 
+(** Insert dictionary constructors. *)
+val bind_dproj : dproj -> t -> t
+val bind_dinst : dinst -> t -> t
+
 (** [lookup_type_kind pos t e] returns the kind of [t] in [e]. *)
 val lookup_type_kind : position -> tname -> t -> Types.kind
 
@@ -55,13 +65,13 @@ val bind_type_variable : tname -> t -> t
 (** [lookup_class pos c e] returns the class_definition of [c] in [e]. *)
 val lookup_class : position -> tname -> t -> class_definition
 
-val lookup_dinst : (tname * Types.t) -> t -> (tname list * binding) option
-val lookup_dvar : (tname * Types.t) -> t -> name option
-val lookup_dproj : (tname * Types.t) -> t -> (tname list * binding) list
+val lookup_dinst : (tname * targ list) -> t -> (dinst * (tname * Types.t) list) list
+val lookup_dvar : (tname * targ list) -> t -> (dvar * (tname * Types.t) list) list
+val lookup_dproj : (tname * targ list) -> t -> (dproj * (tname * Types.t) list) list
 
 (** [is_superclass pos k1 k2 e] returns [true] if [k2] is a superclass of
     [k1] in [e]. *)
-val is_superclass : position -> tname -> tname -> t -> bool
+val is_superclass : position -> (tname * tname list) -> (tname * tname list) -> t -> bool
 
 (** [bind_class c cdef e] associates a class_definition [cdef] to [c] in [e]. *)
 val bind_class : tname -> class_definition -> t -> t

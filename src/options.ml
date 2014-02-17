@@ -1,6 +1,10 @@
 (** Command line options parsing. *)
 
-let options = Arg.align []
+let verbose = ref false
+
+let options = Arg.align [
+  ("-v", Arg.Unit (fun _ -> verbose := true), "toggle verbose mode")
+]
 
 let message = "Usage: joujou [options] input_file"
 

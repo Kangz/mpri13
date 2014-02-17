@@ -43,7 +43,7 @@ val solve: tconstraint -> answer
 (** [lookup_binding a b] returns an explicitly typed version of the
     binding [b] as described by the answer [a]. *)
 val lookup_binding
-  : answer -> string -> (variable list * (tname * variable) list * variable)
+  : answer -> string -> (variable list * (tname * variable list) list * variable)
 
 (** An occurrence is an identifier and a position in the source. *)
 type occurrence = string * position
@@ -52,3 +52,4 @@ type occurrence = string * position
     scheme of a variable [x] has been instantiated at its occurrence
     [o]. *)
 val lookup_instantiation : answer -> occurrence -> variable
+

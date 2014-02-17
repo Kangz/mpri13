@@ -223,15 +223,19 @@ let type_of_variable pos v =
     snd (export false [] v)
   with Cycle -> raise (RecursiveType pos)
 
-let export_class_predicate pos (k, ty) =
-  match snd (export false [] ty) with
-    | TyVar (_, v) -> ClassPredicate (k, v)
-    | _ -> raise (InferenceExceptions.InvalidClassPredicateInContext (pos, k))
+let export_class_predicate pos (k, tys) =
+  let tys = List.map (fun ty ->
+    match snd (export false [] ty) with
+      | TyVar (_, v) -> v
+      | _ -> raise (InferenceExceptions.InvalidClassPredicateInContext (pos, k))
+  ) tys in
+  ClassPredicate (k, tys)
 
 let canonicalize_class_predicates ts cps =
   let cps =
-    List.filter (fun (ClassPredicate (_, t)) ->
-      List.mem t ts
+    List.filter (fun (ClassPredicate (_, tys)) ->
+      (* TODO : Not sure whether all variables should be in [ts] or not. *)
+      List.exists (fun t -> List.mem t ts) tys
     ) cps
   in
   let cps = List.sort (fun (ClassPredicate (k1, _)) (ClassPredicate (k2, _)) ->
@@ -267,3 +271,4 @@ let type_scheme_of_variable =
       let cps = canonicalize_class_predicates ts cps in
       TyScheme (ts, cps, ty)
     with Cycle -> raise (RecursiveType pos)
+

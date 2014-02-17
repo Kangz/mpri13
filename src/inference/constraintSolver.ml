@@ -39,7 +39,7 @@ exception Inconsistency
 
 type tconstraint = Constraint.tconstraint
 
-type canonical_constraint =  (tname * variable) list
+type canonical_constraint =  (tname * variable list) list
 
 let rtrue = []
 let rconj c = List.flatten c
@@ -331,7 +331,7 @@ let solve env pool c =
 
       | CInstance (pos, SName name, term) ->
         let (c, t) = lookup pos name env in
-        let ctys = List.map (fun (k, ty) -> ty) c in
+        let ctys = List.concat (List.map (fun (k, ty) -> ty) c) in
         begin match instance pool (t :: ctys) with
           | [] -> assert false
           | instance :: itys ->

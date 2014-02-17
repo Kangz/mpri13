@@ -15,5 +15,6 @@ let class_of_type (TName s) = TName (String.sub s 1 (String.length s - 1)) ;;
 let make_superclass_label (TName k) (TName super) = LName (k ^ super) ;;
 
 (* Create the name of the instance constructor. *)
-let make_instance_name (TName k) (TName g) = Name (k ^ "_" ^ g) ;;
+let make_instance_name (TName k) tys =
+  Name (List.fold_left (fun k (TName t) -> k ^ "_" ^ t) k tys) ;;
 

@@ -9,6 +9,7 @@ MODULES =					\
   common/misc					\
   common/mark					\
   name types AST IAST XAST			\
+	options					\
   parsing/tokens				\
   parsing/parser				\
   inference/intRank				\
@@ -36,7 +37,6 @@ MODULES =					\
   elaboration/elaborationErrors 		\
   elaboration/elaborationEnvironment 		\
   elaboration/elaborateDictionaries		\
-  options					\
   front
 
 EXECUTABLE = joujou

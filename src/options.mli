@@ -1,5 +1,8 @@
 (** Command line options parsing. *)
 
+(* Toggle verbose mode. *)
+val verbose: bool ref
+
 type source =
   | EMH of string
   | MH of string

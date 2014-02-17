@@ -42,11 +42,11 @@ let elaborate : ConstraintSolver.answer -> IAST.program -> XAST.program =
 
     and class_definition cd =
       {
-        XAST.class_name      = cd.class_name;
-        XAST.class_position  = cd.class_position;
-        XAST.class_members   = cd.class_members;
-        XAST.superclasses    = cd.superclasses;
-        XAST.class_parameter = cd.class_parameter
+        XAST.class_name       = cd.class_name;
+        XAST.class_position   = cd.class_position;
+        XAST.class_members    = cd.class_members;
+        XAST.superclasses     = cd.superclasses;
+        XAST.class_parameters = cd.class_parameters
       }
 
     and instance_definition id =
@@ -55,7 +55,7 @@ let elaborate : ConstraintSolver.answer -> IAST.program -> XAST.program =
         XAST.instance_parameters = id.instance_parameters;
         XAST.instance_class_name = id.instance_class_name;
         XAST.instance_typing_context = id.instance_typing_context;
-        XAST.instance_index = id.instance_index;
+        XAST.instance_indexes = id.instance_indexes;
         XAST.instance_members = List.map record_binding id.instance_members;
       }
 

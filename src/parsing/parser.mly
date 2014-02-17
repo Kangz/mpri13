@@ -83,15 +83,15 @@ class_predicate        = class_predicate_declaration
 class_members          = record_type
 {
   let class_position = lex_join $startpos $endpos in
-  let ClassPredicate (class_name, class_parameter) = class_predicate in
+  let ClassPredicate (class_name, class_parameters) = class_predicate in
   if List.exists
-    (fun (ClassPredicate (_, p)) -> p <> class_parameter)
+    (fun (ClassPredicate (_, p)) -> List.exists (fun p -> not (List.mem p class_parameters)) p)
     superclasses
   then
     Errors.fatal [$startpos; $endpos]
-      "The same type parameter as in the class must be used by superclasses.";
-  let superclasses = List.map (fun (ClassPredicate (k, _)) -> k) superclasses in
-  { class_position; superclasses; class_parameter; class_members; class_name }
+      "The same type parameters as in the class must be used by superclasses.";
+  let superclasses = List.map (fun (ClassPredicate (k, tys)) -> (k, tys)) superclasses in
+  { class_position; superclasses; class_parameters; class_members; class_name }
 }
 
 %inline superclasses:
@@ -106,9 +106,9 @@ class_members          = record_type
 
 class_predicate_declaration:
 class_name             = class_name
-class_parameter        = tvname
+class_parameters       = nonempty_list(tvname)
 {
-  ClassPredicate (class_name, class_parameter)
+  ClassPredicate (class_name, class_parameters)
 }
 
 class_name: c=UID
@@ -121,32 +121,42 @@ INSTANCE
 instance_parameters     = type_parameters
 instance_typing_context = superclasses
 instance_class_name     = class_name
-instance_index          = mldatatype2
+instance_indexes        = nonempty_list(mldatatype2)
 instance_members        = simple_record_expression
 {
   let instance_members = instance_members in
   let instance_position = lex_join $startpos $endpos in
-  let instance_index =
-    match instance_index with
-      | TyApp (_, i, tys) ->
-        if List.(
-          length tys <> length instance_parameters
-          || not (for_all2 (function
-            | TyVar (_, t) -> fun t' -> t = t'
-            | _ -> fun _ -> false
-          ) tys instance_parameters)
-        )
-        then
-          Errors.fatal [$startpos; $endpos]
-            "The type arguments of the instance index must match exactly
-             the type parameters of the instance."
-        else
-          i
-      | _ ->
-        Errors.fatal [$startpos; $endpos] "Invalid instance index."
-  in
+  let instance_indexes =
+    (* Each of the index must takes its parameters from the list
+     * [instance_parameters]. *)
+    List.map (fun index ->
+      match index with
+        | TyApp (_, i, tys) ->
+          let tys = List.map (function
+            | TyVar (_, t) ->
+              if not (List.mem t instance_parameters) then
+                Errors.fatal [$startpos; $endpos]
+                  "The type arguments of an instance index must be declared in
+                   in the type parameters of the instance."
+              else
+                t
+            | _ ->
+              Errors.fatal [$startpos; $endpos] "Invalid instance index."
+          ) tys in
+          (i, tys)
+        | _ ->
+          Errors.fatal [$startpos; $endpos] "Invalid instance index."
+    ) instance_indexes in
+  (* Conversely, all the instance parameters must be used in the
+   * instance indexes. *)
+  let used_parameters = List.flatten (List.map snd instance_indexes) in
+  List.iter (fun (TName t) ->
+    if not (List.mem (TName t) used_parameters) then
+      Errors.fatal [$startpos; $endpos]
+        ("The instance parameter " ^ t ^ " is unused.")
+  ) instance_parameters;
   { instance_position; instance_typing_context; instance_class_name;
-    instance_parameters; instance_index; instance_members }
+    instance_parameters; instance_indexes; instance_members }
 }
 
 type_mutual_definitions: TYPE tds=separated_nonempty_list(AND, type_definition)
@@ -245,7 +255,7 @@ b=binding EQUAL e=expression
 
 %inline class_predicate:
 class_name = class_name
-class_arg  = tvname
+class_arg  = nonempty_list(tvname)
 {
   ClassPredicate (class_name, class_arg)
 }
