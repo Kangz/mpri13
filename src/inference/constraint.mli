@@ -102,7 +102,7 @@ val ex : ?pos:position -> variable list -> tconstraint -> tconstraint
    general. *)
 val fl: ?pos:position -> variable list -> tconstraint -> tconstraint
 
-(** [x <? t] is a conjunction constraint. *)
+(** [x <? t] is an instance constraint. *)
 val (<?): sname -> crterm -> position -> tconstraint
 
 (** [c1 ^ c2] is a conjunction constraint. *)

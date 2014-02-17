@@ -18,8 +18,6 @@ exception MultipleClassDefinitions of tname
     constraint while it is undefined. *)
 exception UnboundClass of tname
 
-(** Student! This is your job! You must implement the following functions: *)
-
 (** [equivalent [b1;..;bN] k t [(k_1,t_1);...;(k_N,t_N)]] registers
     a rule of the form (E). *)
 let equivalent _ _ _ _ = ()

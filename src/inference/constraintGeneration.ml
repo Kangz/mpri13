@@ -35,6 +35,7 @@ open Types
 open InternalizeTypes
 open Name
 open IAST
+open ConstraintSimplifier
 
 (** {2 Inference} *)
 
@@ -546,14 +547,74 @@ and infer_label pos tenv ltys (RecordBinding (l, exp), t) =
     raise (IncompatibleLabel (pos, l))
 
 
-let infer_class tenv tc =
-  (* Student! This is your job! *)
-  (tenv, fun c -> c)
+(* Used to remember all the BClassDefinitions *)
+let classes = ref []
 
+let infer_class tenv tc =
+  (* Register the class with its parents in the stateful structure
+   * in constraintSimplifier *)
+  add_implication tc.class_name tc.superclasses;
+
+  (* store the class information for later use when generating constraints
+   * for the instances *)
+  classes := tc :: !classes;
+  (tenv, fun c -> c)
 
 let infer_instance tenv ti =
-  (* Student! This is your job! *)
-  (tenv, fun c -> c)
+  let pos = ti.instance_position in
+  let cname = ti.instance_class_name in
+  let g = ti.instance_index in
+  let context = ti.instance_typing_context in
+  let iparams = ti.instance_parameters in
+  let members = ti.instance_members in
+
+  (tenv,
+    (* return the conjunction of the given constraint and the instance constraints *)
+    (fun c ->
+      c ^ forall_list ~pos:(pos) iparams
+        (* given [ti] and [c] and a mapping of [ti.instance_parameters]
+         * to variables, compute the constraint (and insert the equivalence
+         * relation). *)
+        (fun wrapped_correspondances ->
+
+            (* forall_list gives back a (tname * variable TVariable) list, unwrap the variables *)
+            let correspondances = List.map (fun (iparam, wrapped_v) ->
+                match wrapped_v with
+                    TVariable v -> (iparam, v)
+                    (* TODO forall never gives a TTerm, find how to fix the warning*)
+            ) wrapped_correspondances in
+
+            (* extract the list of variables from the correspondances *)
+            let vs = List.map (fun (iparam, v) -> v) correspondances in
+
+            (* map the names of the class predicates to variables *)
+            let kts = List.map (fun (ClassPredicate(k, a)) ->
+                let (_, v) = List.find (fun (alpha, v) -> a = alpha) correspondances in
+                (k, v)
+            ) context in
+
+            (* TODO I don't understand what [t] should be exactly *)
+            let t = variable Rigid ~name:g () in
+
+            (* Register the equivalences of this instance definition in the
+             * stateful structure in constraintSimplifier *)
+            equivalent vs cname t kts;
+
+            let class_def = List.find(fun tc -> tc.class_name = cname) !classes in
+
+            (* Build constraints for the instance members *)
+            let member_constraints = List.map(fun (lname, expr) ->
+                let (_, _, typ) = List.find(fun (_, lname2, _) -> lname = lname2) class_def.class_members in
+                CTrue pos
+                (* TODO somehow get the type of the dict member as a crterm to give to infer_expr *)
+            ) (* members *) [] in
+
+
+            (* the instance constraints are the dict member constraints and the dict predicate *)
+            (conj member_constraints) ^ CPredicate(pos, cname, TVariable t)
+        )
+    )
+  )
 
 (** [infer e] determines whether the expression [e] is well-typed
     in the empty environment. *)
@@ -627,3 +688,4 @@ let init_env () =
 let generate_constraint b =
   let (ctx, vs, env) = init_env () in
   (ctx (infer_program env b))
+
