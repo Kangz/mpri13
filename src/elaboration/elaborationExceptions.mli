@@ -107,3 +107,9 @@ exception InvalidRecordInstantiation of position
 (** [OverloadedSymbolCannotBeBound] is raised when an overloaded
     symbol is introduced by a let. *)
 exception OverloadedSymbolCannotBeBound of Positions.position * name
+
+(** [FunctionalDependencyConflict] is raised when a conflict appears
+    between two instances of the same class. *)
+exception FunctionalDependencyConflict of Positions.position * tname
+
+

@@ -28,6 +28,7 @@ let empty = { values = []; types = []; classes = []; labels = []; dprojs = []; d
 
 let values env = env.values
 let classes env = env.classes
+let dinsts env = env.dinsts
 
 let is_overloaded x env =
   List.exists (fun (_, c) ->

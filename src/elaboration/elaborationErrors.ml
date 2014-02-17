@@ -121,4 +121,9 @@ let handle_error f =
       fatal' pos (Printf.sprintf
                    "  Identifier `%s' cannot be both overloaded and let-bound."
                    x)
+    | FunctionalDependencyConflict (pos, TName k) ->
+      fatal' pos (Printf.sprintf
+                    " This instance declaration of class %s is in conflict with another declaration"
+                    k)
+
 

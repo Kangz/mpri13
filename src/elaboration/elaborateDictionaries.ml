@@ -8,21 +8,43 @@ open ElaborationExceptions
 open ElaborationEnvironment
 
 let string_of_type ty      = ASTio.(XAST.(to_string pprint_ml_type ty))
-let is_canonical pos ts context env =
+(* Check the canonicity of a typing context. *)
+let check_canonical pos ts context env =
   List.iter (fun (ClassPredicate (k1, a1)) ->
     List.iter (fun (ClassPredicate (k2, a2)) ->
       if k1 != k2 && is_superclass pos (k1, a1) (k2, a2) env then
         raise (TheseTwoClassesMustNotBeInTheSameContext (pos, k1, k2));
     ) context
   ) context
-;;
+(* Check for overlapping instances. The functional dependencies are checked at the same time. *)
+and check_overlapping pos k indexes env =
+  let c = lookup_class pos k env in
+  let (dleft,dright) = c.class_dependencies in
+  List.iter (fun (_, _, _, (k', indexes')) ->
+    if type_of_class k = k' then begin
+      if List.for_all2 (fun (g, _) (g', _) -> g=g') indexes indexes' then
+        raise (OverlappingInstances (pos, k));
+      let mleft = List.for_all2
+        (fun t ((g,_),(g',_)) -> (not (List.mem t dleft)) || g = g')
+        c.class_parameters
+        (List.combine indexes indexes')
+      in
+      let mright = List.for_all2
+        (fun t ((g,_),(g',_)) -> (not (List.mem t dright)) || g = g')
+        c.class_parameters
+        (List.combine indexes indexes')
+      in
+      if not (not mleft || mright) then
+        raise (FunctionalDependencyConflict (pos, k))
+    end
+  ) (dinsts env)
 
-(* Given a type constructor [g], and a list of type variables [tys], build the type
- * representing [g] applied to [tys]. *)
+
+(* Given a type constructor [g], and a list of type variables [tys], build the type [g tys]. *)
 let construct_type pos ix tys =
   TyApp (pos, ix, List.map (fun t -> TyVar (pos, t)) tys)
-;;
 
+(* All purpose exception used in the elaboration of dictionaries. *)
 exception Incompatible ;;
 
 (* Elaboration of dictionary values. The return value is a list of all elaborated dictionaries
@@ -216,7 +238,7 @@ and block env = function
       ) c.superclasses) @ c.class_members in
     let ctype = TypeDef (pos, ckind, cname, DRecordType (cparams, crecords)) in
 
-    (* Build the class members. *)
+    (* Build the accessors to the record labels. *)
     let cmembers = List.map (fun (pos, lname, typ) ->
       let name = name_of_label lname in
       (* Check that [lname] is not bound. *)
@@ -261,8 +283,9 @@ and block env = function
         fun (ClassPredicate (k,tys)) -> construct_type pos (type_of_class k) tys
       ) context in
 
-      (* Check the canonicity of the typing context of [i]. *)
-      is_canonical pos i.instance_parameters context env;
+      (* Some checks. *)
+      check_canonical pos i.instance_parameters context env;
+      check_overlapping pos i.instance_class_name i.instance_indexes env;
 
       (* Check the instance indexes. *)
       List.iter (fun (ix, tys) ->
@@ -701,7 +724,7 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
 
   if is_value_form e then begin
     (* Check the canonicity of the typing context. *)
-    is_canonical pos ts ps env;
+    check_canonical pos ts ps env;
     (* Check the number of type abstractions. *)
     let e = eforall pos ts e in
     (* The class predicates are transformed into arguments. *)

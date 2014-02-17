@@ -24,6 +24,8 @@ module Make (P : Types.TypingSyntax) = struct
     superclasses     : (tname * tname list) list;
     class_name       : tname;
     class_members    : (position * lname * mltype) list;
+    (* Functional dependencies. *)
+    class_dependencies : (tname list * tname list);
   }
 
   and instance_definition = {

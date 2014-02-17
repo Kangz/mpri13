@@ -80,27 +80,41 @@ class_definition:
 CLASS
 superclasses           = superclasses
 class_predicate        = class_predicate_declaration
+class_dependencies     = class_dependencies
 class_members          = record_type
 {
-  let class_position = lex_join $startpos $endpos in
-  let ClassPredicate (class_name, class_parameters) = class_predicate in
-  if List.exists
-    (fun (ClassPredicate (_, p)) -> List.exists (fun p -> not (List.mem p class_parameters)) p)
-    superclasses
+  let class_position = lex_join $startpos $endpos
+  and dependl,dependr = class_dependencies
+  and ClassPredicate (class_name, class_parameters) = class_predicate in
+  if List.exists (fun (ClassPredicate (_, p)) ->
+    List.exists (fun p -> not (List.mem p class_parameters)) p) superclasses
   then
     Errors.fatal [$startpos; $endpos]
       "The same type parameters as in the class must be used by superclasses.";
+  if List.exists (fun t -> not (List.mem t class_parameters)) (dependl @ dependr)
+  then
+    Errors.fatal [$startpos; $endpos]
+      "The same type parameters as in the class must be used by the functional dependency";
   let superclasses = List.map (fun (ClassPredicate (k, tys)) -> (k, tys)) superclasses in
-  { class_position; superclasses; class_parameters; class_members; class_name }
+  let dependl, dependr = (List.filter (fun t -> not (List.mem t dependr)) dependl,
+                          List.filter (fun t -> not (List.mem t dependl)) dependr) in
+  { class_position; superclasses; class_parameters;
+    class_members; class_name; class_dependencies = (dependl,dependr) }
+}
+
+%inline class_dependencies:
+/* empty */ {
+  ([],[])
+}
+| PIPE left=nonempty_list(tvname) RARROW right=nonempty_list(tvname) {
+  (left, right)
 }
 
 %inline superclasses:
-/* empty */
-{
+/* empty */ {
   []
 }
-| ps=separated_nonempty_list(COMMA, class_predicate_declaration) BIGRARROW
-{
+| ps=separated_nonempty_list(COMMA, class_predicate_declaration) BIGRARROW {
   ps
 }
 

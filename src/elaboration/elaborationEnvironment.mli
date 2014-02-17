@@ -32,6 +32,7 @@ val is_class_name : tname -> t -> bool
     that associate type scheme to value identifiers. *)
 val values : t -> (tnames * binding) list
 val classes : t -> (tname * class_definition) list
+val dinsts : t -> dinst list
 
 (** [lookup pos x env] returns the binding of [x]. *)
 val lookup : position -> name -> t -> (tnames * binding)

@@ -46,7 +46,8 @@ let elaborate : ConstraintSolver.answer -> IAST.program -> XAST.program =
         XAST.class_position   = cd.class_position;
         XAST.class_members    = cd.class_members;
         XAST.superclasses     = cd.superclasses;
-        XAST.class_parameters = cd.class_parameters
+        XAST.class_parameters = cd.class_parameters;
+        XAST.class_dependencies = cd.class_dependencies;
       }
 
     and instance_definition id =
