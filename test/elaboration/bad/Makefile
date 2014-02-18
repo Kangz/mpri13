@@ -7,17 +7,16 @@ TESTS = $(shell ls *.mle)
 all: $(patsubst %.mle, %.ko, $(TESTS))
 
 $(JOUJOU):
-	@echo "*** Please build $(JOUJOU) first"
+	@echo "\e[0;31m*** Please build $(JOUJOU) first\e[m"
 	@exit 1
 
 %.ko: %.mle $(JOUJOU)
-	@echo OCAMLRUNPARAM=b $(JOUJOU) $(OPTIONS) $<
 	@if OCAMLRUNPARAM=b $(JOUJOU) $(OPTIONS) $<;		\
 	then							\
-	  echo "*** Succeed when should have failed *** $< \n";	\
+	  echo -e "\e[0;31m*** Succeed when should have failed ***\e[m $< \n";	\
 	  exit 1; 						\
 	else 							\
-	  echo [OK] $< "\n";					\
+	  echo -e "\e[0;32m[OK]\e[m $<\n";					\
 	  touch $@; 						\
 	fi
 

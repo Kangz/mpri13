@@ -1,2 +1,0 @@
-let ['a] (id : 'a -> 'a) = ['a] fun (x : 'a) -> x[]
-let ['a] (e : 'a -> 'a) = ['a] id['a -> 'a] id['a]
