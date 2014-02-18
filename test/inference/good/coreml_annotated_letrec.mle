@@ -1,3 +1,0 @@
-let rec ['a] (id : 'a -> 'a) = ['a] fun (x : 'a) -> x[]
-let rec ['a] (id_1 : 'a -> 'a) = ['a] fun (x_1 : 'a) -> x_1[]
-let rec ['a] (id_2 : 'a -> 'a) = ['a] fun (x_2 : 'a) -> x_2[]

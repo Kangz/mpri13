@@ -1,1 +1,0 @@
-let (main : int) = let (x : int) = 42 in x[]

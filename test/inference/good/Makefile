@@ -12,21 +12,21 @@ TARGETS = $(patsubst %.mlt, %.ml, $(TESTS)) \
 all: $(TARGETS)
 
 $(JOUJOU):
-	@echo "*** Please build $(JOUJOU) first"
+	@echo -e "\e[0;31m*** Please build $(JOUJOU) first\e[m"
 	@exit 1
 
 %.ml: %.mlt $(JOUJOU)
 	@if OCAMLRUNPARAM=b $(JOUJOU) $(OPTIONS) $<; then \
-	  echo [OK] Elaboration of $<;			\
+	  echo -e "\e[0;32m[OK]\e[m Elaboration of $<";			\
 	else						\
-	  echo [KO] Elaboration of $<;			\
+	  echo -e "\e[0;31m[KO]\e[m Elaboration of $<";			\
 	fi
 
 %.cmo: %.ml
-	@ if $(OCAMLC) -c $<; then 		\
-	  echo [OK] Compilation of $<;		\
+	@if $(OCAMLC) -c $<; then 		\
+	  echo -e "\e[0;32m[OK]\e[m Compilation of $<";		\
 	else 					\
-	  echo [KO] Compilation of $<;		\
+	  echo -e "\e[0;31m[KO]\e[m Compilation of $<";		\
 	fi
 
 %_run.cmo: %.cmo
@@ -36,9 +36,9 @@ $(JOUJOU):
 
 %.out: %.run
 	@ if ./$<; then 			\
-	  echo [OK] Evaluation of $<;		\
+	  echo -e "\e[0;32m[OK]\e[m Evaluation of $<";		\
 	else					\
-	  echo [KO] Evaluation of $<;		\
+	  echo -e "\e[0;31m[KO]\e[m Evaluation of $<";		\
 	fi
 	@ touch $@
 

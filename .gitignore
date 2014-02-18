@@ -17,6 +17,7 @@ src/parsing/pprint-20130324/src/_build
 
 test/*/*/*.ko
 test/*/*/*.mlse
+test/inference/*/*.mle
 test/*/*/*.mls
 test/*/*/*.mlr
 test/*/*/*.ml
