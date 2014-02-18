@@ -13,9 +13,10 @@ $(JOUJOU):
 %.ko: %.mlt $(JOUJOU)
 	@if OCAMLRUNPARAM=b $(JOUJOU) $(OPTIONS) $<;		\
 	then							\
-	  echo -e "\e[0;31m*** Succeed when should have failed ***\e[m $<";	\
+	  echo `tput setaf 2`"*** Succeed when should have failed ***"`tput sgr0` " $<";	\
 	else 							\
-	  echo -e "\e[0;32m[OK]\e[m $<\n";					\
+	  echo `tput setaf 2`"[OK]`tput sgr0` $<\n";					\
+	  echo;\
 	  touch $@; 						\
 	fi
 

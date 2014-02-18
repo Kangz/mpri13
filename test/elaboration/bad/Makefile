@@ -7,16 +7,17 @@ TESTS = $(shell ls *.mle)
 all: $(patsubst %.mle, %.ko, $(TESTS))
 
 $(JOUJOU):
-	@echo "\e[0;31m*** Please build $(JOUJOU) first\e[m"
+	@echo `tput setaf 1`"*** Please build $(JOUJOU) first"`tput sgr0`
 	@exit 1
 
 %.ko: %.mle $(JOUJOU)
 	@if OCAMLRUNPARAM=b $(JOUJOU) $(OPTIONS) $<;		\
 	then							\
-	  echo -e "\e[0;31m*** Succeed when should have failed ***\e[m $< \n";	\
+	  echo `tput setaf 1`"*** Succeed when should have failed ***"`tput sgr0` $<;	\
 	  exit 1; 						\
 	else 							\
-	  echo -e "\e[0;32m[OK]\e[m $<\n";					\
+	  echo `tput setaf 2`"[OK]"`tput sgr0` $<;					\
+	  echo; \
 	  touch $@; 						\
 	fi
 
