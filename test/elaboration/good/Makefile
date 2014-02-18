@@ -12,21 +12,23 @@ TARGETS = $(patsubst %.mle, %.ml, $(TESTS)) \
 all: $(TARGETS)
 
 $(JOUJOU):
-	@echo -e "\e[0;31m*** Please build $(JOUJOU) first\e[m"
+	@echo -e `tput setaf 1`"*** Please build $(JOUJOU) first"`tput sgr0`
 	@exit 1
 
 %.ml: %.mle $(JOUJOU)
 	@if OCAMLRUNPARAM=b $(JOUJOU) $(OPTIONS) $<; then \
-	  echo -e "\e[0;32m[OK] Elaboration of $<\e[m";			\
+	  echo `tput setaf 2`"[OK]"`tput sgr0`" Elaboration of $<";			\
 	else						\
-	  echo -e "\e[0;31m[KO] Elaboration of $<\e[m";			\
+	  echo `tput setaf 1`"[KO]"`tput sgr0`" Elaboration of $<";			\
+	  echo;\
 	fi
 
 %.cmo: %.ml
 	@ if $(OCAMLC) -c $<; then 		\
-	  echo -e "\e[0;32m[OK] Compilation of $<\e[m";		\
+	  echo `tput setaf 2`"[OK]"`tput sgr0`" Compilation of $<";		\
 	else 					\
-	  echo -e "\e[0;31m[KO] Compilation of $<\e[m";		\
+	  echo `tput setaf 1`"[KO]"`tput sgr0`" Compilation of $<";		\
+	  echo;\
 	fi
 
 %_run.cmo: %.cmo
@@ -36,9 +38,10 @@ $(JOUJOU):
 
 %.out: %.run
 	@ if ./$<; then 			\
-	  echo -e "\e[0;32m[OK] Evaluation of $<\e[m";		\
+	  echo `tput setaf 2`"[OK]"`tput sgr0`" Evaluation of $<";		\
 	else					\
-	  echo -e "\e[0;31m[KO] Evaluation of $<\e[m";		\
+	  echo `tput setaf 1`"[KO]"`tput sgr0`" Evaluation of $<";		\
+	  echo;\
 	fi
 	@ touch $@
 
