@@ -547,18 +547,25 @@ and infer_label pos tenv ltys (RecordBinding (l, exp), t) =
     raise (IncompatibleLabel (pos, l))
 
 
-(* Used to remember all the BClassDefinitions *)
-let classes = ref []
-
 let infer_class tenv tc =
+  let pos = tc.class_position in
   (* Register the class with its parents in the stateful structure
    * in constraintSimplifier *)
   add_implication tc.class_name tc.superclasses;
+  let a, rtenv =
+    match fresh_rigid_vars pos tenv [tc.class_parameter] with
+    | ([a], rtenv) -> (a,rtenv)
+    | _ -> assert false
+  in
+  let tenv' = add_type_variables rtenv tenv in
 
-  (* store the class information for later use when generating constraints
-   * for the instances *)
-  classes := tc :: !classes;
-  (tenv, fun c -> c)
+  (tenv',
+   fun c ->
+     CLet (List.map (fun (pos, LName lbl, ty) ->
+       let ty' = intern pos tenv' ty in
+       let b = StringMap.add lbl (ty', pos) StringMap.empty in
+       Scheme (pos, [a], [], [(tc.class_name,a)], CTrue pos, b)) tc.class_members, c)
+   )
 
 let infer_instance tenv ti =
   let pos = ti.instance_position in
@@ -576,42 +583,34 @@ let infer_instance tenv ti =
          * to variables, compute the constraint (and insert the equivalence
          * relation). *)
         (fun wrapped_correspondances ->
+          (* forall_list gives back a (tname * variable TVariable) list, unwrap the variables *)
+          let correspondances = List.map (fun (iparam, wrapped_v) ->
+            match wrapped_v with
+            | TVariable v -> (iparam, v)
+            | TTerm _ -> assert false
+          ) wrapped_correspondances in
 
-            (* forall_list gives back a (tname * variable TVariable) list, unwrap the variables *)
-            let correspondances = List.map (fun (iparam, wrapped_v) ->
-                match wrapped_v with
-                    TVariable v -> (iparam, v)
-                    (* TODO forall never gives a TTerm, find how to fix the warning*)
-            ) wrapped_correspondances in
+          (* extract the list of variables from the correspondances *)
+          let vs = List.map snd correspondances in
 
-            (* extract the list of variables from the correspondances *)
-            let vs = List.map (fun (iparam, v) -> v) correspondances in
+          (* map the names of the class predicates to variables *)
+          let kts = List.map (fun (ClassPredicate(k, a)) ->
+            (k, List.assoc a correspondances)
+          ) context in
 
-            (* map the names of the class predicates to variables *)
-            let kts = List.map (fun (ClassPredicate(k, a)) ->
-                let (_, v) = List.find (fun (alpha, v) -> a = alpha) correspondances in
-                (k, v)
-            ) context in
+          let t = variable Rigid ~name:g () in
 
-            (* TODO I don't understand what [t] should be exactly *)
-            let t = variable Rigid ~name:g () in
+          (* Register the equivalences of this instance definition in the
+           * stateful structure in constraintSimplifier *)
+          equivalent vs cname t kts;
 
-            (* Register the equivalences of this instance definition in the
-             * stateful structure in constraintSimplifier *)
-            equivalent vs cname t kts;
+          (* Build constraints for the instance members *)
+          let member_constraints = List.map (fun (RecordBinding (lname, expr)) ->
+            infer_expr tenv expr (TVariable (variable Flexible ()))
+          ) members in
 
-            let class_def = List.find(fun tc -> tc.class_name = cname) !classes in
-
-            (* Build constraints for the instance members *)
-            let member_constraints = List.map(fun (lname, expr) ->
-                let (_, _, typ) = List.find(fun (_, lname2, _) -> lname = lname2) class_def.class_members in
-                CTrue pos
-                (* TODO somehow get the type of the dict member as a crterm to give to infer_expr *)
-            ) (* members *) [] in
-
-
-            (* the instance constraints are the dict member constraints and the dict predicate *)
-            (conj member_constraints) ^ CPredicate(pos, cname, TVariable t)
+          (* the instance constraints are the dict member constraints and the dict predicate *)
+          (conj member_constraints) ^ CPredicate(pos, cname, TVariable t)
         )
     )
   )

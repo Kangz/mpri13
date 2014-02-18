@@ -69,7 +69,7 @@ and variable_kind = Rigid | Flexible | Constant
 type crterm = variable InferenceTypes.arterm
 
 type pool = {
-            number        : int; (** The present pool's rank. *)
+    number        : int; (** The present pool's rank. *)
     mutable inhabitants : variable list
   }
 
