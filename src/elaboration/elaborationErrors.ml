@@ -123,7 +123,15 @@ let handle_error f =
                    x)
     | FunctionalDependencyConflict (pos, TName k) ->
       fatal' pos (Printf.sprintf
-                    " This instance declaration of class %s is in conflict with another declaration"
+                    " This instance declaration of class %s is in conflict with another declaration."
+                    k)
+    | InvalidNumberOfInstanceIndexes (pos, TName k) ->
+      fatal' pos (Printf.sprintf
+                    " This instance declaration of class %s uses an invalid number of indexes."
+                    k)
+    | InvalidNumberOfClassParameters (pos, TName k) ->
+      fatal' pos (Printf.sprintf
+                    " The class %s is not applied to the right number of parameters."
                     k)
 
 

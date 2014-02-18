@@ -31,3 +31,6 @@ exception LabelDoesNotBelong of position * lname * tname * tname
 exception InvalidRecordInstantiation of position
 exception OverloadedSymbolCannotBeBound of Positions.position * name
 exception FunctionalDependencyConflict of Positions.position * tname
+exception InvalidNumberOfInstanceIndexes of Positions.position * tname
+exception InvalidNumberOfClassParameters of Positions.position * tname
+

@@ -1,0 +1,63 @@
+(* Vertical, 2D vectors. *)
+type 'a vector = Vector of 'a * 'a
+type 'a matrix = Matrix of ('a vector) * ('a vector)
+
+class Add 'a { add : 'a -> 'a -> 'a }
+class Mul 'a 'b 'c | 'a 'b -> 'c { mul : 'a -> 'b -> 'c }
+
+let external (add_int : int -> int -> int) = "fun x y -> x + y"
+let external (mul_int : int -> int -> int) = "fun x y -> x * y"
+
+instance Add int {
+  add = fun (x:int) -> fun (y:int) -> add_int[] x[] y[]
+}
+
+instance ['a] Add 'a => Add ('a vector) {
+  add = fun (v0:'a vector) -> fun (v1:'a vector) ->
+    match v0[] with
+    | Vector['a](a0, b0) -> (
+      match v1[] with
+      | Vector['a] (a1, b1) ->
+        Vector['a](add['a] a0[] a1[], add['a] b0[] b1[])
+    )
+}
+
+instance ['a] Add 'a => Add ('a matrix) {
+  add = fun (m0:'a matrix) -> fun (m1:'a matrix) ->
+    match m0[] with
+    | Matrix['a] (v00, v01) -> (
+      match m1[] with
+      | Matrix['a] (v10, v11) ->
+        Matrix['a](
+            add['a vector] v00[] v10[],
+            add['a vector] v10[] v11[]
+        )
+    )
+}
+
+instance Mul int int int {
+  mul = fun (x:int) -> fun (y:int) -> mul_int[] x[] y[]
+}
+
+instance ['a] Add 'a, Mul 'a 'a 'a => Mul ('a matrix) ('a vector) ('a vector) {
+  mul = fun (m:'a matrix) -> fun (v:'a vector) ->
+    match m[] with
+    | Matrix['a](Vector['a] (m00, m10), Vector['a] (m01, m11)) -> (
+      match v[] with
+      | Vector['a](v0, v1) ->
+        Vector['a](
+          add['a] (mul['a, 'a, 'a] m00[] v0[]) (mul['a, 'a, 'a] m10[] v1[]),
+          add['a] (mul['a, 'a , 'a] m01[] v0[]) (mul['a, 'a, 'a] m11[] v1[])
+        )
+    )
+}
+
+instance ['a] Add 'a, Mul 'a 'a 'a => Mul ('a matrix) ('a matrix) ('a matrix) {
+  mul = fun (m0: 'a matrix) -> fun (m1: 'a matrix) ->
+    match m1[] with
+    | Matrix['a](v10, v11) ->
+      Matrix['a](
+        mul['a matrix,'a vector,'a vector] m0[] v10[],
+        mul['a matrix,'a vector,'a vector] m0[] v11[]
+      )
+}

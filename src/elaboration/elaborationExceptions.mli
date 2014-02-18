@@ -112,4 +112,12 @@ exception OverloadedSymbolCannotBeBound of Positions.position * name
     between two instances of the same class. *)
 exception FunctionalDependencyConflict of Positions.position * tname
 
+(** [InvalidNumberOfInstanceIndexes] is raised when an instance is
+    with a number of indexes that does not match that of the class
+    declaration. *)
+exception InvalidNumberOfInstanceIndexes of Positions.position * tname
+
+(** [InvalidNumberOfClassParamaters] is raised when a class in a class
+    predicate is not applied to the correct number of parameters. *)
+exception InvalidNumberOfClassParameters of Positions.position * tname
 

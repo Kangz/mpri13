@@ -7,9 +7,13 @@ open ElaborationErrors
 open ElaborationExceptions
 open ElaborationEnvironment
 
+(* All purpose exception used in the elaboration of dictionaries. *)
+exception Incompatible ;;
+
+
 let string_of_type ty      = ASTio.(XAST.(to_string pprint_ml_type ty))
 (* Check the canonicity of a typing context. *)
-let check_canonical pos ts context env =
+let rec check_canonical pos ts context env =
   List.iter (fun (ClassPredicate (k1, a1)) ->
     List.iter (fun (ClassPredicate (k2, a2)) ->
       if k1 != k2 && is_superclass pos (k1, a1) (k2, a2) env then
@@ -38,18 +42,24 @@ and check_overlapping pos k indexes env =
         raise (FunctionalDependencyConflict (pos, k))
     end
   ) (dinsts env)
-
+and check_indexes pos k indexes env =
+  let c = lookup_class pos k env in
+  if List.length c.class_parameters != List.length indexes then
+    raise (InvalidNumberOfInstanceIndexes (pos,k));
+  List.iter (fun (ix, tys) ->
+    let k = lookup_type_kind pos ix env in
+    let tys = List.map (fun p -> TyVar (pos, p)) tys in
+    if ix = TName "->" then raise (IllKindedType pos);
+    check_type_constructor_application pos env k tys
+  ) indexes
 
 (* Given a type constructor [g], and a list of type variables [tys], build the type [g tys]. *)
-let construct_type pos ix tys =
+and construct_type pos ix tys =
   TyApp (pos, ix, List.map (fun t -> TyVar (pos, t)) tys)
-
-(* All purpose exception used in the elaboration of dictionaries. *)
-exception Incompatible ;;
 
 (* Elaboration of dictionary values. The return value is a list of all elaborated dictionaries
  * matching the given type, each associated with an adequate instantiation of the flexible variables. *)
-let elaborate_dictionary env (pos, tname, tys) =
+and elaborate_dictionary env (pos, tname, tys) =
   (* If [t] is a variable bound in the map, then
    * return its value (as [Rigid]) else the variable is [Flexible]. *)
   let subsopt map x =
@@ -197,7 +207,7 @@ let elaborate_dictionary env (pos, tname, tys) =
   | (e,_)::_ -> e
 
 
-let rec program p = handle_error List.(fun () ->
+and program p = handle_error List.(fun () ->
   flatten (fst (Misc.list_foldmap block ElaborationEnvironment.initial p))
 )
 
@@ -215,6 +225,13 @@ and block env = function
 
     (* The function [bind_class] already checks for existing defintions of
        [c]. *)
+
+    (* Check the class predicates. *)
+    List.iter (fun (k, tys) ->
+      let c = lookup_class pos k env in
+      if List.length c.class_parameters != List.length tys then
+        raise (InvalidNumberOfClassParameters (pos,k))
+    ) c.superclasses;
 
     (* Check the independance of the superclasses.
        Since this check must find the list of superclasses
@@ -270,7 +287,6 @@ and block env = function
       ]) in
       bind_dproj ((name, typ), cparams, (cname,cparams), (kname,tys)) env
     ) env c.superclasses in
-
     (BTypeDefinitions (TypeDefs (pos, [ctype])) :: def, env)
 
   | BInstanceDefinitions is ->
@@ -284,16 +300,15 @@ and block env = function
       ) context in
 
       (* Some checks. *)
+      (* Check the class predicates. *)
+      List.iter (fun (ClassPredicate (k, tys)) ->
+        let c = lookup_class pos k env in
+        if List.length c.class_parameters != List.length tys then
+          raise (InvalidNumberOfClassParameters (pos,k))
+      ) i.instance_typing_context;
+      check_indexes pos i.instance_class_name i.instance_indexes env;
       check_canonical pos i.instance_parameters context env;
       check_overlapping pos i.instance_class_name i.instance_indexes env;
-
-      (* Check the instance indexes. *)
-      List.iter (fun (ix, tys) ->
-        let k = lookup_type_kind pos ix env in
-        let tys = List.map (fun p -> TyVar (pos, p)) tys in
-        if ix = TName "->" then raise (IllKindedType pos);
-        check_type_constructor_application pos env k tys
-      ) i.instance_indexes;
 
       (* Bind the instance constructor in the environment. *)
       let iname = make_instance_name cname (List.map fst i.instance_indexes) in
