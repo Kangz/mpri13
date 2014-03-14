@@ -105,7 +105,8 @@ and block env = function
       let k = lookup_type_kind pos g env in
       let params = List.map (fun p -> TyVar (pos, p)) i.instance_parameters in
       if g = TName "->" then raise (IllKindedType pos);
-      check_type_constructor_application pos env k params;
+      check_type_constructor_application pos
+        (introduce_type_parameters env i.instance_parameters) k params;
 
       (* Bind the instance constructor in the environment. *)
       let iname = make_instance_name cname g in
@@ -176,16 +177,26 @@ and elaborate_dictionary env (pos, tname, typ) =
     try
       (* Lookup dict instances. *)
       match (lookup_dinst (tname, typ) env, typ) with
-        (Some (ts, (x, ty)), TyApp (_,_,typarg))  ->
+        (Some (ts, (x, ty)), TyApp (_,_,tys))  ->
           let (ity, oty) = destruct_ntyarrow ty in
+          let maparg =
+            match oty with
+            | TyApp (_,_,[TyApp (_,_,ts)]) ->
+              List.map2 (fun t t' ->
+                match t with
+                | TyVar (_, t) -> (t,t')
+                | _ -> assert false
+              ) ts tys
+            | _ -> assert false
+          in
           let darg = List.map (fun ity ->
             match ity with
-              TyApp (_, k, [aty]) ->
+            | TyApp (_, k, [a]) ->
                 (* Elaboration of the instance arguments. *)
-                elaborate_dictionary env (pos, k, aty)
+                elaborate_dictionary env (pos, k, substitute maparg a)
             | _ -> raise (CannotElaborateDictionary (pos, ity))
           ) ity in
-          List.fold_left (fun e f -> EApp (pos, e, f)) (EVar (pos, x, typarg)) darg
+          List.fold_left (fun e f -> EApp (pos, e, f)) (EVar (pos, x, tys)) darg
       | _ -> raise (CannotElaborateDictionary (pos, TyApp (pos, tname, [typ])))
     (* Either no instance found, or error in the elaboration of the instance arguments. *)
     with CannotElaborateDictionary _ ->
@@ -402,6 +413,13 @@ and expression env = function
     let rbstys = List.map (record_binding env) rbs in
     let rec check others rty = function
       | [] ->
+        begin match rty with
+          | Some (_, TyApp (_, rtcon, _)) ->
+            let labels = labels_of rtcon env in
+            if (List.length labels <> List.length others) then
+              raise (InvalidRecordConstruction pos)
+          | _ -> assert false (** Because we forbid empty record. *)
+        end;
         List.rev others, rty
       | (RecordBinding (l, e), ty) :: ls ->
         if List.exists (fun (RecordBinding (l', _)) -> l = l') others then
@@ -553,8 +571,8 @@ and eforall pos ts e =
       raise (InvalidNumberOfTypeAbstraction pos)
 
 
-and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
-  let env = introduce_type_parameters env ts in
+and value_definition env' (ValueDef (pos, ts, ps, (x, xty), e)) =
+  let env = introduce_type_parameters env' ts in
   if is_overloaded (label_of_name x) env then
     raise (OverloadedSymbolCannotBeBound (pos, x));
   check_wf_scheme env ts xty;
@@ -579,7 +597,7 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
     ) ps xty in
     check_equal_types pos xty ty;
     (ValueDef (pos, ts, [], (x, ty), EForall (pos, ts, e)),
-     bind_scheme x ts ty env)
+     bind_scheme x ts ty env')
   end else begin
     (* If the expression is not in value form, the class constraints are ignored. *)
     if ts <> [] || ps <> [] then
@@ -589,7 +607,7 @@ and value_definition env (ValueDef (pos, ts, ps, (x, xty), e)) =
       let e, ty = expression env e in
       let b = (x, ty) in
       check_equal_types pos xty ty;
-      (ValueDef (pos, [], [], b, e), bind_simple x ty env)
+      (ValueDef (pos, [], [], b, e), bind_simple x ty env')
   end
 
 and value_declaration env (ValueDef (pos, ts, ps, (x, ty), e)) =
