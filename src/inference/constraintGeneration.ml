@@ -571,20 +571,22 @@ let infer_class tenv tc =
   (* Register the class with its parents in the stateful structure
    * in constraintSimplifier *)
   add_implication tc.class_name tc.superclasses;
+
+  (* Create a fresh variable name  [a] for our class*)
   let a, rtenv =
     match fresh_rigid_vars pos tenv [tc.class_parameter] with
     | ([a], rtenv) -> (a,rtenv)
     | _ -> assert false
   in
-  let tenv' = add_type_variables rtenv tenv in
+  let tenv = add_type_variables rtenv tenv in
 
-  (tenv',
-   fun c ->
-     CLet (List.map (fun (pos, LName lbl, ty) ->
-       let ty' = intern pos tenv' ty in
-       let b = StringMap.add lbl (ty', pos) StringMap.empty in
-       Scheme (pos, [a], [], [(tc.class_name,a)], CTrue pos, b)) tc.class_members, c)
-   )
+  let member_to_scheme (pos, LName lbl, ty) =
+    intern_scheme pos tenv lbl [tc.class_parameter] [ClassPredicate(tc.class_name, tc.class_parameter)] ty
+  in
+
+  let schemes = List.map member_to_scheme tc.class_members in
+
+  (tenv, fun c -> CLet(schemes, c))
 
 let infer_instance tenv ti =
   let pos = ti.instance_position in
