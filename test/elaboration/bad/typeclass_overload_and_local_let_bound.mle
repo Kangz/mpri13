@@ -1,2 +1,0 @@
-class H 'a { h : 'a -> int }
-let (x : int) = let (h : int) = 42 in h

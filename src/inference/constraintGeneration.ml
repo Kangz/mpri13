@@ -272,15 +272,44 @@ let infer_typedef tenv (TypeDefs (pos, tds)) =
 (** [infer_vdef pos tenv (pos, qs, p, e)] returns the constraint
     related to a value definition. *)
 let rec infer_vdef pos tenv (ValueDef (pos, qs, cs, b, e)) =
-  let x = variable Flexible () in
-  let tx = TVariable x in
-  let rqs, rtenv = fresh_rigid_vars pos tenv qs in
-  let tenv' = add_type_variables rtenv tenv in
-  let xs, gs, cs = InternalizeTypes.intern_class_predicates pos tenv' cs in
-  let c, h = header_of_binding pos tenv' b tx in
-  Scheme (pos, rqs, x :: xs,
-          gs, c ^ conj cs ^ infer_expr tenv' e tx,
-          h)
+  let rec is_value_form = function
+  | EVar _
+  | ELambda _
+  | EPrimitive _ ->
+    true
+  | EDCon (_, _, _, es) ->
+    List.for_all is_value_form es
+  | ERecordCon (_, _, _, rbs) ->
+    List.for_all (fun (RecordBinding (_, e)) -> is_value_form e) rbs
+  | EExists (_, _, t)
+  | ETypeConstraint (_, t, _)
+  | EForall (_, _, t) ->
+    is_value_form t
+  | _ ->
+    false
+  in
+  if is_value_form e then
+    let x = variable Flexible () in
+    let tx = TVariable x in
+    let rqs, rtenv = fresh_rigid_vars pos tenv qs in
+    let tenv' = add_type_variables rtenv tenv in
+    let xs, gs, cs = InternalizeTypes.intern_class_predicates pos tenv' cs in
+    let c, h = header_of_binding pos tenv' b tx in
+    ([], Scheme (pos, rqs, x :: xs,
+            gs, c ^ conj cs ^ infer_expr tenv' e tx,
+            h))
+  else
+    let x = variable Flexible () in
+    let tx = TVariable x in
+    let rqs, rtenv = fresh_rigid_vars pos tenv qs in
+    let tenv' = add_type_variables rtenv tenv in
+    let xs, gs, cs = InternalizeTypes.intern_class_predicates pos tenv' cs in
+    let c, h = header_of_binding pos tenv' b tx in
+    ([x],
+     Scheme (pos, rqs, xs,
+             gs, c ^ conj cs ^ infer_expr tenv' e tx,
+             h))
+
 
 (** [infer_binding tenv b] examines a binding [b], updates the
     typing environment if it binds new types or generates
@@ -297,8 +326,8 @@ and infer_binding tenv b =
       tenv, (fun c -> CLet ([scheme], c))
 
     | BindValue (pos, vdefs) ->
-      let schemes = List.map (infer_vdef pos tenv) vdefs in
-      tenv, (fun c -> CLet (schemes, c))
+      let xs, schemes = List.(split (map (infer_vdef pos tenv) vdefs)) in
+      tenv, (fun c -> ex (List.flatten xs) (CLet (schemes, c)))
 
     | BindRecValue (pos, vdefs) ->
 
@@ -410,26 +439,16 @@ and infer_expr tenv e (t : crterm) =
       let tenv = add_type_variables denv tenv in
       ex fqs (infer_expr tenv e t)
 
-    (** [forall a. e] generates the constraint:
-        let forall b [ (( e : b )) ].(_z : b) in _z < t
-        which means the [e] must have a type at least as general as
-        [t] assuming [a] is generic. *)
     | EForall (pos, vs, e) ->
-      let (rqs, denv) = fresh_rigid_vars pos tenv vs in
-      let tenv = add_type_variables denv tenv in
-      let beta = variable Flexible () in
-      let gt = TVariable beta in
-      CLet ([Scheme (pos, rqs, [beta], [],
-                     infer_expr tenv e gt,
-                     StringMap.singleton "_z" (gt, pos)) ],
-            (SName "_z" <? t) pos)
+      (** Not in the implicitly typed language. *)
+      assert false
 
     (** The type of a variable must be at least as general as [t]. *)
     | EVar (pos, Name name, _) ->
       (SName name <? t) pos
 
     (** To type a lambda abstraction, [t] must be an arrow type.
-        Furthermore, type variables introduce by the lambda pattern
+        Furthermore, type variables introduced by the lambda pattern
         cannot be generalized locally. *)
     | ELambda (pos, b, e) ->
       exists (fun x1 ->
@@ -552,20 +571,22 @@ let infer_class tenv tc =
   (* Register the class with its parents in the stateful structure
    * in constraintSimplifier *)
   add_implication tc.class_name tc.superclasses;
+
+  (* Create a fresh variable name  [a] for our class*)
   let a, rtenv =
     match fresh_rigid_vars pos tenv [tc.class_parameter] with
     | ([a], rtenv) -> (a,rtenv)
     | _ -> assert false
   in
-  let tenv' = add_type_variables rtenv tenv in
+  let tenv = add_type_variables rtenv tenv in
 
-  (tenv',
-   fun c ->
-     CLet (List.map (fun (pos, LName lbl, ty) ->
-       let ty' = intern pos tenv' ty in
-       let b = StringMap.add lbl (ty', pos) StringMap.empty in
-       Scheme (pos, [a], [], [(tc.class_name,a)], CTrue pos, b)) tc.class_members, c)
-   )
+  let member_to_scheme (pos, LName lbl, ty) =
+    intern_scheme pos tenv lbl [tc.class_parameter] [ClassPredicate(tc.class_name, tc.class_parameter)] ty
+  in
+
+  let schemes = List.map member_to_scheme tc.class_members in
+
+  (tenv, fun c -> CLet(schemes, c))
 
 let infer_instance tenv ti =
   let pos = ti.instance_position in
