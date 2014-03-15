@@ -568,18 +568,19 @@ and infer_label pos tenv ltys (RecordBinding (l, exp), t) =
 
 let infer_class tenv tc =
   let pos = tc.class_position in
-  (* Register the class with its parents in the stateful structure
-   * in constraintSimplifier *)
-  add_implication tc.class_name tc.superclasses;
 
-  (* Create a fresh variable name  [a] for our class*)
-  let a, rtenv =
-    match fresh_rigid_vars pos tenv [tc.class_parameter] with
-    | ([a], rtenv) -> (a,rtenv)
-    | _ -> assert false
-  in
-  let tenv = add_type_variables rtenv tenv in
+  (* Translate the class definition. *)
+  let [rq], rtenv = fresh_unnamed_rigid_vars pos tenv [tc.class_parameter] in
+  let tenv' = add_type_variables rtenv tenv in
+  add_class (
+    tc.class_name,
+    tc.superclasses,
+    rq,
+    List.map (fun (pos, lname, ty) ->
+      let ty' = intern pos tenv' ty in
+      (lname, ty')) tc.class_members);
 
+  (* Create the class constraint. *)
   let member_to_scheme (pos, LName lbl, ty) =
     intern_scheme pos tenv lbl [tc.class_parameter] [ClassPredicate(tc.class_name, tc.class_parameter)] ty
   in
@@ -592,49 +593,34 @@ let infer_instance tenv ti =
   let pos = ti.instance_position in
   let cname = ti.instance_class_name in
   let g = ti.instance_index in
-  let context = ti.instance_typing_context in
   let iparams = ti.instance_parameters in
   let members = ti.instance_members in
 
-  (tenv,
-    (* return the conjunction of the given constraint and the instance constraints *)
-    (fun c ->
-      c ^ forall_list ~pos:(pos) iparams
-        (* given [ti] and [c] and a mapping of [ti.instance_parameters]
-         * to variables, compute the constraint (and insert the equivalence
-         * relation). *)
-        (fun wrapped_correspondances ->
-          (* forall_list gives back a (tname * variable TVariable) list, unwrap the variables *)
-          let correspondances = List.map (fun (iparam, wrapped_v) ->
-            match wrapped_v with
-            | TVariable v -> (iparam, v)
-            | TTerm _ -> assert false
-          ) wrapped_correspondances in
+  (* Generate rigid variables for each instance parameter. *)
+  let rqs, rtenv = fresh_rigid_vars pos tenv iparams in
+  let tenv' = add_type_variables rtenv tenv in
 
-          (* extract the list of variables from the correspondances *)
-          let vs = List.map snd correspondances in
+  (* Looks up the class definition, and derive the type of the members. *)
+  let (_, _, cparam, cmembers) = lookup_class cname in
+  let index = intern pos tenv' (TyApp (pos, g, List.map (fun x -> TyVar (pos, x)) iparams)) in
+  let member_types = List.map (fun (lname, t) ->
+    (lname, gen_change_arterm_vars [cparam,index] t)
+  ) cmembers in
 
-          (* map the names of the class predicates to variables *)
-          let kts = List.map (fun (ClassPredicate(k, a)) ->
-            (k, List.assoc a correspondances)
-          ) context in
+  (* Infer the type of the members. *)
+  let member_constraints = exists_list members (fun xs ->
+    CConjunction (List.map (fun (RecordBinding (lname, expr), t) ->
+      (List.assoc lname member_types =?= t) pos ^ infer_expr tenv expr t) xs)
+  ) in
 
-          let t = variable Rigid ~name:g () in
+  (* TODO: Add the equivalence. *)
 
-          (* Register the equivalences of this instance definition in the
-           * stateful structure in constraintSimplifier *)
-          equivalent vs cname t kts;
+  (* Build the constraint. *)
+  let instance_constraint = CLet ([
+    Scheme (pos, rqs, [], [], member_constraints, StringMap.empty)
+  ], CTrue pos) in
 
-          (* Build constraints for the instance members *)
-          let member_constraints = List.map (fun (RecordBinding (lname, expr)) ->
-            infer_expr tenv expr (TVariable (variable Flexible ()))
-          ) members in
-
-          (* the instance constraints are the dict member constraints and the dict predicate *)
-          (conj member_constraints) ^ CPredicate(pos, cname, TVariable t)
-        )
-    )
-  )
+  (tenv, fun c -> c ^ instance_constraint)
 
 (** [infer e] determines whether the expression [e] is well-typed
     in the empty environment. *)

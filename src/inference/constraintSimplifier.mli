@@ -26,10 +26,16 @@ exception MultipleClassDefinitions of tname
     constraint while it is undefined. *)
 exception UnboundClass of tname
 
-(** [equivalent [b1;..;bN] k t [(k_1,t_1);...;(k_N,t_N)]] registers
-    a rule of the form (E). *)
-val equivalent
-  : variable list -> tname -> variable -> (tname * variable) list -> unit
+type class_info = (tname * tname list * variable * (lname * crterm) list)
+type instance_info = unit
+
+(** [add_class c] records a class definition. *)
+val add_class : class_info -> unit
+(** [add_instance i] records an instance definition. *)
+val add_instance : instance_info -> unit
+
+(** [lookup_class c] lookups up the defintion of the class [c]. *)
+val lookup_class : tname -> class_info
 
 (** [canonicalize pos pool c] where [c = [(k_1,t_1);...;(k_N,t_N)]]
     decomposes [c] into an equivalent constraint [c' =
@@ -38,11 +44,6 @@ val equivalent
     is equivalent to [false]. *)
 val canonicalize
   : position -> pool -> (tname * variable) list -> (tname * variable) list
-
-(** [add_implication k [k_1;...;k_N]] registers a rule of the form
-    (E'). *)
-val add_implication
-  : tname -> tname list -> unit
 
 (** [entails C1 C2] returns true is the canonical constraint [C1] implies
     the canonical constraint [C2]. *)

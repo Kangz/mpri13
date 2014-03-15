@@ -301,9 +301,17 @@ let solve env pool c =
       | CDump p ->
         rtrue
 
-      | CPredicate (pos, k, ty) ->
-        let TVariable ty = ty in
-        ConstraintSimplifier.canonicalize pos pool [k, ty]
+      | CPredicate (pos, ((TName kn) as k), ty) ->
+        print_string kn;
+        print_newline ();
+
+        (* Canonicalize the constraint. *)
+        let t = chop pool ty in
+        let ctx = ConstraintSimplifier.canonicalize pos pool [k, t] in
+        (* Check the consistency of the programmer's annotation. *)
+        if not (ConstraintSimplifier.entails ctx given_c) then
+          raise Inconsistency;
+        ctx
 
       | CEquation (pos, term1, term2) ->
         let t1, t2 = twice (chop pool) term1 term2 in
@@ -403,3 +411,4 @@ let init () =
 let solve c =
   let env, pool = init () in
   solve env pool c
+

@@ -18,16 +18,27 @@ exception MultipleClassDefinitions of tname
     constraint while it is undefined. *)
 exception UnboundClass of tname
 
-type implication = tname * tname list
+type class_info = (tname * tname list * variable * (lname * crterm) list)
+type instance_info = unit
+
 type equivalence = variable list * (tname * variable) * (tname * variable) list
 
-let implications = ref []
-let equivalences = ref []
+let classes = ref []
+let instances = ref []
 
-(** [equivalent [b1;..;bN] k t [(k_1,t_1);...;(k_N,t_N)]] registers
-    a rule of the form (E). *)
-let equivalent bs k t kts =
-  equivalences := (bs,(k,t),kts)::!equivalences
+
+let add_class cli =
+  classes := cli::(!classes)
+
+let add_instance isi =
+  instances := isi::(!instances)
+
+let lookup_class c =
+  try
+    List.find (fun (c', _, _, _) -> c = c') !classes
+  with Not_found -> raise (UnboundClass c)
+
+
 
 (** [canonicalize pos pool c] where [c = [(k_1,t_1);...;(k_N,t_N)]]
     decomposes [c] into an equivalent constraint [c' =
@@ -39,9 +50,10 @@ let canonicalize pos pool cs =
   let expand cs =
     List.fold_left (fun cs (k,t) ->
       try
-        let ks = List.assoc k !implications in
+        let (_, ks, _, _) = lookup_class k in
         finished := true;
-        (List.map (fun k -> (k,t)) ks) @ cs
+        if ks == [] then [k,t] @ cs
+        else (List.map (fun k -> (k,t)) ks) @ cs
       with Not_found -> (k,t)::cs
     ) [] cs
   in
@@ -60,13 +72,8 @@ let canonicalize pos pool cs =
   let cs = unique (expand_all cs) in
 
   (* TODO Contract the produced context, using equivalences. *)
-  List.iter (fun (k, v) -> register pool v) cs;
+(*  List.iter (fun (k, v) -> introduce pool v) cs; *)
   cs
-
-(** [add_implication k [k_1;...;k_N]] registers a rule of the form
-    (E'). *)
-let add_implication k ks =
-  implications := (k, ks) :: !implications
 
 (** [entails C1 C2] returns true is the canonical constraint [C1] implies
     the canonical constraint [C2]. *)
@@ -85,7 +92,7 @@ and contains k1 k2 =
   if k1 = k2 then true
   else
     try
-      let ks = List.assoc k1 !implications in
+      let (_,ks,_,_) = lookup_class k1 in
       List.exists (fun k -> contains k k2) ks
     with Not_found -> false
 
